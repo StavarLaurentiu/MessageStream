@@ -254,6 +254,8 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
               memcpy(&response.message, message, sizeof(struct udp_message));
               rc = send_all(client.sockfd, &response, sizeof(struct tcp_message));
               DIE(rc < 0, "Send POST message ERROR");
+
+              break;
             }
           }
         }
