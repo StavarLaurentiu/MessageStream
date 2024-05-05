@@ -1,5 +1,15 @@
+// Description: This file contains the implementation of the UDP/TCP server
 #include "headers.h"
 #include "utils.h"
+
+bool topics_are_matching(const char *topic1, const char *topic2)
+{
+  // Check if the topics are matching
+  if (strncmp(topic1, topic2, MAX_TOPIC_LEN) == 0)
+    return true;
+
+  return false;
+}
 
 void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
 {
@@ -9,7 +19,7 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
 
   // Initialize the set of active sockets
   fd_set fds, tmp_fds;
-  
+
   // Initialize the sets of file descriptors
   FD_ZERO(&fds);
   FD_ZERO(&tmp_fds);
@@ -23,15 +33,17 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
   int fdmax = max(tcp_sockfd, udp_sockfd);
 
   // Run the application
-  while (1) {
+  while (1)
+  {
     tmp_fds = fds;
 
     // Select the active sockets
     rc = select(fdmax + 1, &tmp_fds, NULL, NULL, NULL);
     DIE(rc < 0, "Select ERROR");
 
-    // Check if the STDIN is active
-    if (FD_ISSET(STDIN_FILENO, &tmp_fds)) {
+    // Check if the STDIN is active and an exit command was given
+    if (FD_ISSET(STDIN_FILENO, &tmp_fds))
+    {
       char buffer[BUFLEN];
       memset(buffer, 0, BUFLEN);
 
@@ -40,26 +52,41 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
       DIE(rc < 0, "Read from STDIN ERROR");
 
       // Check if the command is 'exit'
-      if (strncmp(buffer, "exit", 4) == 0) {
-        // Close all the sockets
-        for (auto client : clients) {
+      if (strncmp(buffer, "exit", 4) == 0)
+      {
+        // Close all the sockets and send a DISCONNECT message to the clients
+        for (auto client : clients)
+        {
+          // If the client is not connected, continue
+          if (!client.connected)
+            continue;
+
+          struct tcp_message message;
+          message.op_code = DISCONNECT;
+          rc = send_all(client.sockfd, &message, sizeof(struct tcp_message));
+          DIE(rc < 0, "Send DISCONNECT message ERROR");
+
           close(client.sockfd);
         }
 
         break;
-      } else {
-        DIE(true, "Invalid command");
+      }
+      else
+      {
+        fprintf(stderr, "Invalid command.\n");
       }
     }
 
     // Check if any other socket is active
-    for (int i = 2; i <= fdmax; i++) {
+    for (int i = 2; i <= fdmax; i++)
+    {
       // If the socket is not active, continue
-      if (!FD_ISSET(i, &tmp_fds)) 
+      if (!FD_ISSET(i, &tmp_fds))
         continue;
 
       // Check the type of the socket
-      if (i == tcp_sockfd) {
+      if (i == tcp_sockfd)
+      {
         // Accept the new TCP connection
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -77,23 +104,29 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
         DIE(rc < 0, "Receive client ID ERROR");
 
         // Check that the message is a CONNECT message
-        if (message->op_code != CONNECT) {
+        if (message->op_code != CONNECT)
+        {
           close(newsockfd);
           continue;
         }
 
         // Check if the client ID is already in use
         bool found = false;
-        for (auto client : clients) {
-          if (strcmp(client.id, message->id) == 0) {
+        struct tcp_client *client_found = NULL;
+        for (auto client : clients)
+        {
+          if (strcmp(client.id, message->id) == 0)
+          {
             found = true;
+            client_found = &client;
             break;
           }
         }
 
         // If the client ID is already in use, print "Client <ID> already in use"
-        if (found) {
-          fprintf(stdin, "Client %s already connected.\n", message->id);
+        if (found && client_found->connected)
+        {
+          fprintf(stdout, "Client %s already connected.\n", message->id);
 
           // Send a message to the client that the ID is already in use
           struct tcp_message response;
@@ -104,26 +137,35 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
           close(newsockfd);
           continue;
         }
+        else if (found)
+        {
+          // RECONNECT THE CLIENT
 
-        // Print "New client <ID> connected from <IP>:<PORT>."
-        fprintf(stdin, "New client %s connected from %s:%hu.\n", message->id, tcp_client_ip, tcp_client_port);
+          // Mark the client as connected again
+          client_found->connected = true;
 
-        // Send a CONNECT_ACK message to the client
-        struct tcp_message response;
-        response.op_code = CONNECT_ACK;
-        rc = send_all(newsockfd, &response, sizeof(struct tcp_message));
-        DIE(rc < 0, "Send CONNECT_ACK message ERROR");
+          // Update the client's IP and port
+          strcpy(client_found->ip, tcp_client_ip);
+          client_found->port = tcp_client_port;
 
-        // Create a new client
-        struct tcp_client new_client;
-        strcpy(new_client.id, message->id);
-        new_client.connected = true;
-        strcpy(new_client.ip, tcp_client_ip);
-        new_client.port = tcp_client_port;
-        new_client.sockfd = newsockfd;
+          // Update the client's socket
+          client_found->sockfd = newsockfd;
+        }
+        else
+        {
+          // CREATE A NEW CLIENT
 
-        // Add the new client to the list of clients
-        clients.push_back(new_client);
+          // Create a new client
+          struct tcp_client new_client;
+          strcpy(new_client.id, message->id);
+          new_client.connected = true;
+          strcpy(new_client.ip, tcp_client_ip);
+          new_client.port = tcp_client_port;
+          new_client.sockfd = newsockfd;
+
+          // Add the new client to the list of clients
+          clients.push_back(new_client);
+        }
 
         // Set NO_DELAY option
         int flag = 1;
@@ -132,10 +174,152 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
         // Add the new socket to the set
         FD_SET(newsockfd, &fds);
         fdmax = max(fdmax, newsockfd);
+
+        // Send a CONNECT_ACK message to the client
+        struct tcp_message response;
+        response.op_code = CONNECT_ACK;
+        rc = send_all(newsockfd, &response, sizeof(struct tcp_message));
+        DIE(rc < 0, "Send CONNECT_ACK message ERROR");
+
+        // Print "New client <ID> connected from <IP>:<PORT>."
+        fprintf(stdout, "New client %s connected from %s:%hu.\n", message->id, tcp_client_ip, tcp_client_port);
+      }
+      else if (i == udp_sockfd)
+      {
+        // Declare a udp_message to receive the message from the UDP client
+        struct udp_message *message = (struct udp_message *)malloc(sizeof(struct udp_message));
+        memset(message, 0, sizeof(struct udp_message));
+
+        // Declare a sockaddr_in to receive the address of the UDP client
+        struct sockaddr_in udp_client_addr;
+        socklen_t udp_client_len = sizeof(udp_client_addr);
+
+        // Receive the message from the UDP client
+        rc = recvfrom(udp_sockfd, message, sizeof(struct udp_message), 0, (struct sockaddr *)&udp_client_addr, &udp_client_len);
+        DIE(rc < 0, "Receive message from UDP client ERROR");
+
+        // Get the UDP client IP and port
+        char udp_client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &udp_client_addr.sin_addr, udp_client_ip, INET_ADDRSTRLEN);
+        uint16_t udp_client_port = ntohs(udp_client_addr.sin_port);
+
+        // Find the clients that are subscribed to a matching topic
+        for (auto client : clients)
+        {
+          if (!client.connected)
+            continue;
+
+          for (auto topic : client.topics_subscribed)
+          {
+            if (topics_are_matching(topic.c_str(), message->topic))
+            {
+              // Send the message to the TCP client
+              struct tcp_message response;
+              response.op_code = POST;
+              strcpy(response.udp_client_ip, udp_client_ip);
+              response.udp_client_port = udp_client_port;
+              memcpy(&response.message, message, sizeof(struct udp_message));
+              rc = send_all(client.sockfd, &response, sizeof(struct tcp_message));
+              DIE(rc < 0, "Send POST message ERROR");
+            }
+          }
+        }
+        
+      }
+      else
+      {
+        // Receive a message from an TCP client
+        // Could be a DISCONNECT/SUBSCRIBE/UNSUBSCRIBE message
+
+        // Find the client that sent the message
+        struct tcp_client *client_sender = NULL;
+        for (auto client : clients)
+        {
+          if (client.sockfd == i)
+          {
+            client_sender = &client;
+            break;
+          }
+        }
+
+        // Receive the message from the client
+        struct tcp_message *message = (struct tcp_message *)malloc(sizeof(struct tcp_message));
+        rc = recv_all(i, message, sizeof(struct tcp_message));
+        DIE(rc < 0, "Receive message from client ERROR");
+
+        // Check the operation code
+        if (message->op_code == DISCONNECT)
+        {
+          // Mark the client as disconnected
+          for (auto &client : clients)
+          {
+            if (strcmp(client.id, message->id) == 0)
+            {
+              client.connected = false;
+              break;
+            }
+          }
+
+          // Remove the client's socket from the set
+          FD_CLR(i, &fds);
+
+          // Close the socket
+          close(i);
+
+          // Print "Client <ID> disconnected."
+          fprintf(stdout, "Client %s disconnected.\n", client_sender->id);
+        }
+        else if (message->op_code == SUBSCRIBE)
+        {
+          // SUBSCRIBE
+
+          // Add the topic to the list of topics of the client
+          for (auto &client : clients)
+          {
+            if (strcmp(client.id, message->id) == 0)
+            {
+              string topic(message->topic, MAX_TOPIC_LEN);
+              client.topics_subscribed.push_back(topic);
+              break;
+            }
+          }
+
+          // Send a message to the client that it subscribed to the topic
+          struct tcp_message response;
+          response.op_code = SUBSCRIBE_ACK;
+          strncpy(response.topic, message->topic, MAX_TOPIC_LEN);
+          rc = send_all(i, &response, sizeof(struct tcp_message));
+          DIE(rc < 0, "Send SUBSCRIBE_ACK message ERROR");
+        }
+        else if (message->op_code == UNSUBSCRIBE)
+        {
+          // UNSUBSCRIBE
+
+          // Remove the topic from the list of topics of the client
+          for (auto &client : clients)
+          {
+            if (strcmp(client.id, message->id) == 0)
+            {
+              client.topics_subscribed.erase(remove(client.topics_subscribed.begin(), client.topics_subscribed.end(), message->topic), client.topics_subscribed.end());
+              break;
+            }
+          }
+
+          // Send a message to the client that it unsubscribed from the topic
+          struct tcp_message response;
+          response.op_code = UNSUBSCRIBE_ACK;
+          strncpy(response.topic, message->topic, MAX_TOPIC_LEN);
+          rc = send_all(i, &response, sizeof(struct tcp_message));
+          DIE(rc < 0, "Send UNSUBSCRIBE_ACK message ERROR");
+        }
+        else
+        {
+          // Invalid operation code
+          fprintf(stderr, "Invalid operation code.\n");
+        }
       }
     }
   }
-  
 
   return;
 }

@@ -2,8 +2,8 @@
 #ifndef _PO_UDP_H
 #define _PO_UDP_H 1
 
-#define MAX_TOPIC_LEN 50
 #define MAX_CONTENT_LEN 1500
+#define MAX_TOPIC_LEN 50
 
 #pragma pack(1)
 

@@ -6,7 +6,7 @@
 
 #include "po_udp.h"
 
-#define MAX_ID_LEN 11
+#define MAX_ID_LEN 10
 
 #define SUBSCRIBE 0
 #define SUBSCRIBE_ACK 1
@@ -51,7 +51,7 @@ struct tcp_message
     struct udp_message message;
     
     // Topic -- used only for SUBSCRIBE, UNSUBSCRIBE
-    string topic;
+    char topic[MAX_TOPIC_LEN];
 
     // Client ID -- used only for CONNECT, DISCONNECT
     char id[MAX_ID_LEN];

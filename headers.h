@@ -14,13 +14,14 @@
 #include <poll.h>
 #include <vector>
 #include <map>
+#include <algorithm>
 
 using namespace std;
 
 #include "po_udp.h"
 #include "po_tcp.h"
 
-#define BUFLEN 20
+#define BUFLEN 61
 
 // TAKEN FROM LAB 7
 
