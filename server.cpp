@@ -2,11 +2,37 @@
 #include "headers.h"
 #include "utils.h"
 
+// Function that checks if two topics are matching
+// Inclunding regexes such as "+" or "*"
 bool topics_are_matching(const char *topic1, const char *topic2)
 {
-  // Check if the topics are matching
-  if (strncmp(topic1, topic2, MAX_TOPIC_LEN) == 0)
+  // If the topics are the same, return true
+  if (strcmp(topic1, topic2) == 0)
     return true;
+
+  // Create two copies of the topics
+  char *topic1_copy = strdup(topic1);
+  char *topic2_copy = strdup(topic2);
+
+  // If the topics are different, take tokens from them
+  vector<string> tokens1;
+  vector<string> tokens2;
+
+  // Tokenize the first topic
+  char *token = strtok(topic1_copy, "/");
+  while (token != NULL)
+  {
+    tokens1.push_back(token);
+    token = strtok(NULL, "/");
+  }
+
+  // Tokenize the second topic
+  token = strtok(topic2_copy, "/");
+  while (token != NULL)
+  {
+    tokens2.push_back(token);
+    token = strtok(NULL, "/");
+  }
 
   return false;
 }
@@ -142,7 +168,14 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
           // RECONNECT THE CLIENT
 
           // Mark the client as connected again
-          client_found->connected = true;
+          for (auto &client : clients)
+          {
+            if (strcmp(client.id, message->id) == 0)
+            {
+              client.connected = true;
+              break;
+            }
+          }
 
           // Update the client's IP and port
           strcpy(client_found->ip, tcp_client_ip);

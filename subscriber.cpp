@@ -2,8 +2,9 @@
 #include "headers.h"
 #include "utils.h"
 
+// Function that gets the integer value from the content
 int get_INT_value(char *content)
-{   
+{
     // Get the sign of the integer
     int8_t sign = content[0];
 
@@ -16,6 +17,7 @@ int get_INT_value(char *content)
     return sign == 0 ? value : -value;
 }
 
+// Function that gets the short real value from the content
 float get_SHORT_REAL_value(char *content)
 {
     // Get the short real value
@@ -25,6 +27,24 @@ float get_SHORT_REAL_value(char *content)
 
     // Return the float value
     return (float)value / 100;
+}
+
+// Function that gets the float value from the content
+float get_FLOAT_value(char *content)
+{
+    // Get the sign of the float
+    int8_t sign = content[0];
+
+    // Get the float value
+    uint32_t value = 0;
+    memcpy(&value, content + sizeof(int8_t), sizeof(uint32_t));
+    value = ntohl(value);
+
+    // Get the power of 10
+    int8_t power = content[sizeof(int8_t) + sizeof(uint32_t)];
+
+    // Return the float value based on the sign and power
+    return sign == 0 ? (float)value / pow(10, power) : -(float)value / pow(10, power);
 }
 
 // Function that parses the response from the server
@@ -41,7 +61,7 @@ void parse_response(struct tcp_message response)
         printf("%s - SHORT_REAL - %.2f\n", response.message.topic, get_SHORT_REAL_value(response.message.content));
         break;
     case TYPE_FLOAT:
-        printf("%s - FLOAT - %.4f\n", response.message.topic, *(float *)response.message.content);
+        printf("%s - FLOAT - %.4f\n", response.message.topic, get_FLOAT_value(response.message.content));
         break;
     case TYPE_STRING:
         printf("%s - STRING - %s\n", response.message.topic, response.message.content);
@@ -107,7 +127,7 @@ void run_client(int tcp_sockfd, char *client_id)
 
                 // Erase the '\n' from the token
                 token[strlen(token) - 1] = '\0';
-                
+
                 // Send the message to the server
                 message.op_code = SUBSCRIBE;
                 strncpy(message.topic, token, MAX_TOPIC_LEN);
@@ -148,7 +168,8 @@ void run_client(int tcp_sockfd, char *client_id)
             {
                 fprintf(stderr, "Invalid command.\n");
             }
-        } else if (fds[1].revents & POLLIN)
+        }
+        else if (fds[1].revents & POLLIN)
         {
             // Receive the message/response from the server
             rc = recv_all(tcp_sockfd, &response, sizeof(struct tcp_message));
@@ -216,7 +237,7 @@ int main(int argc, char *argv[])
     message.op_code = CONNECT;
     strcpy(message.id, client_id);
     rc = send_all(sockfd, &message, sizeof(struct tcp_message));
-    
+
     // Receive the response from the server
     struct tcp_message response;
     rc = recv_all(sockfd, &response, sizeof(struct tcp_message));
@@ -231,7 +252,7 @@ int main(int argc, char *argv[])
 
     // Run the client
     run_client(sockfd, client_id);
-    
+
     // Close the socket
     close(sockfd);
 
