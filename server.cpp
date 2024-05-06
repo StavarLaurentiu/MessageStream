@@ -34,6 +34,76 @@ bool topics_are_matching(const char *topic1, const char *topic2)
     token = strtok(NULL, "/");
   }
 
+  // Check if the tokens are matching
+  int index_tokens1 = 0, index_tokens2 = 0;
+  while (index_tokens1 < tokens1.size() && index_tokens2 < tokens2.size())
+  {
+    // If the tokens are matching or the token in first vector is "+", continue
+    if (tokens1[index_tokens1] == tokens2[index_tokens2] || tokens1[index_tokens1] == "+")
+    {
+      index_tokens1++;
+      index_tokens2++;
+    }
+    else if (tokens1[index_tokens1] == "*")
+    {
+      // If the "*" token is the last token in the first vector, return true
+      if (index_tokens1 == tokens1.size() - 1)
+        return true;
+
+      // Get the next token after the "*" token
+      string next = tokens1[index_tokens1 + 1];
+
+      // Check if the next token after "*" is "+"
+      if (next == "+")
+      {
+        // If the next token is "+"
+
+        // If the next token is the last token in the first vector, return true
+        if (index_tokens1 == tokens1.size() - 2)
+          return true;
+
+        // Get the next token after the next token after "*"
+        next = tokens1[index_tokens1 + 2];
+
+        // Find the next token in the second vector that is equal to the next token after "*"
+        while (index_tokens2 < tokens2.size() && tokens2[index_tokens2] != next)
+          index_tokens2++;
+
+        // If the token is not found, return false
+        if (index_tokens2 == tokens2.size())
+          return false;
+
+        // Else, continue
+        index_tokens1 += 2;
+      }
+      else
+      {
+        // The next token is not "+"
+
+        // Find the next token in the second vector that is equal to the next token after "*"
+        while (index_tokens2 < tokens2.size() && tokens2[index_tokens2] != next)
+          index_tokens2++;
+
+        // If the token is not found, return false
+        if (index_tokens2 == tokens2.size())
+          return false;
+
+        // Else, continue
+        index_tokens1++;
+      }
+    }
+    // Else the topics are not matching
+    else
+    {
+      return false;
+    }
+  }
+
+  // If the tokens are matching, return true
+  if (index_tokens1 == tokens1.size() && index_tokens2 == tokens2.size())
+    return true;
+
+  // Otherwise, there is only a partial match between the topics
   return false;
 }
 
@@ -259,7 +329,6 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
             }
           }
         }
-        
       }
       else
       {
@@ -335,7 +404,8 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
           {
             if (strcmp(client.id, message->id) == 0)
             {
-              client.topics_subscribed.erase(remove(client.topics_subscribed.begin(), client.topics_subscribed.end(), message->topic), client.topics_subscribed.end());
+              string topic(message->topic, MAX_TOPIC_LEN);
+              client.topics_subscribed.erase(remove(client.topics_subscribed.begin(), client.topics_subscribed.end(), topic), client.topics_subscribed.end());
               break;
             }
           }
