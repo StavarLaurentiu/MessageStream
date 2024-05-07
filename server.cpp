@@ -115,8 +115,6 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
 
   // Initialize the set of active sockets
   fd_set fds, tmp_fds;
-
-  // Initialize the sets of file descriptors
   FD_ZERO(&fds);
   FD_ZERO(&tmp_fds);
 
@@ -174,7 +172,7 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
     }
 
     // Check if any other socket is active
-    for (int i = 2; i <= fdmax; i++)
+    for (int i = 1; i <= fdmax; i++)
     {
       // If the socket is not active, continue
       if (!FD_ISSET(i, &tmp_fds))
@@ -256,11 +254,9 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
         }
         else
         {
-          // CREATE A NEW CLIENT
-
           // Create a new client
           struct tcp_client new_client;
-          strcpy(new_client.id, message->id);
+          strncpy(new_client.id, message->id, MAX_ID_LEN);
           new_client.connected = true;
           strcpy(new_client.ip, tcp_client_ip);
           new_client.port = tcp_client_port;
@@ -325,6 +321,7 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
               rc = send_all(client.sockfd, &response, sizeof(struct tcp_message));
               DIE(rc < 0, "Send POST message ERROR");
 
+              // Send a message only one time to a client
               break;
             }
           }
@@ -334,17 +331,6 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
       {
         // Receive a message from an TCP client
         // Could be a DISCONNECT/SUBSCRIBE/UNSUBSCRIBE message
-
-        // Find the client that sent the message
-        struct tcp_client *client_sender = NULL;
-        for (auto client : clients)
-        {
-          if (client.sockfd == i)
-          {
-            client_sender = &client;
-            break;
-          }
-        }
 
         // Receive the message from the client
         struct tcp_message *message = (struct tcp_message *)malloc(sizeof(struct tcp_message));
@@ -371,7 +357,7 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
           close(i);
 
           // Print "Client <ID> disconnected."
-          fprintf(stdout, "Client %s disconnected.\n", client_sender->id);
+          fprintf(stdout, "Client %s disconnected.\n", message->id);
         }
         else if (message->op_code == SUBSCRIBE)
         {
@@ -380,7 +366,7 @@ void run_app_multi_server(int tcp_sockfd, int udp_sockfd)
           // Add the topic to the list of topics of the client
           for (auto &client : clients)
           {
-            if (strcmp(client.id, message->id) == 0)
+            if (strncmp(client.id, message->id, MAX_ID_LEN) == 0)
             {
               string topic(message->topic, MAX_TOPIC_LEN);
               client.topics_subscribed.push_back(topic);

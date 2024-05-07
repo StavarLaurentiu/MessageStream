@@ -90,7 +90,7 @@ void run_client(int tcp_sockfd, char *client_id)
 
     while (1)
     {
-        // Add the socket to the poll
+        // Poll the sockets
         rc = poll(fds, 2, -1);
         DIE(rc < 0, "poll ERROR");
 

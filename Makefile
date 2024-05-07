@@ -23,4 +23,5 @@ run_subscriber:
 	./subscriber ${ID_CLIENT} ${IP_SERVER} ${PORT_SERVER}
 
 clean:
+	rm -f *.o
 	rm -f server subscriber
