@@ -2,9 +2,7 @@
 
 2. Test passed: All
 
-3. Homework implemented in C++
-
-4. Protocols explained
+3. Protocols explained
 
     a) PO_UDP - Protocol over UDP 
         - Used in comunications between UDP clients and the server
